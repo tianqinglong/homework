@@ -1,0 +1,61 @@
+---
+title: "stat602_hw2"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 4.3
+
+## First we read in the data set and remove the irrelavant columns.
+```{r}
+house <- read_excel("~/Downloads/AmesHousingData.xlsx")
+house <- data.frame(Price = house$Price, Size = house$Size,
+                    Fireplace = house$Fireplace,
+                    Basementbath = house$`Bsmt Bath`, Land = house$Land, intersect = 1)
+head(house)
+```
+
+## Now we need a matrix of all the possible regressor combinations.
+```{r}
+regMat <- expand.grid(c(TRUE,FALSE), c(TRUE,FALSE),
+                      c(TRUE,FALSE), c(TRUE,FALSE))
+regMat <- cbind(TRUE,regMat)
+
+head(regMat)
+```
+
+## Then we construct a formula so that from each row of regMat we can determine the the regressor combinations.
+```{r}
+formu <- function(vec)
+{
+  vec <- as.matrix(vec)
+  regressors <- c("intersect","Size", "Fireplace", "Basementbath", "Land")
+  out <- as.formula(paste(c("Price ~ 0", regressors[vec]), collapse=" + "))
+  
+  return(out)
+}
+
+formu(regMat[1,])
+```
+
+## Cross-validation using **caret** package
+
+We will repeat the 8-fold crossvalidation 10 times.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "repeatedcv", repeats = 10, number = 8)
+
+RMSE <- numeric(16)
+for(i in 1:length(RMSE)){
+  model_caret <- train(formu(regMat[i,]), data = house, trControl = ctrl, method = "lm")
+  RMSE[i] = model_caret$results[,2]
+}
+RMSE
+order(RMSE)
+```
+We can see that the full model has the smallest mean squared prediction error.
+
+# 4.4
+
