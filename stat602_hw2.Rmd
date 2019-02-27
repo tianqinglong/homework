@@ -5,6 +5,7 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(caret)
 ```
 
 # 4.3
@@ -45,7 +46,7 @@ formu(regMat[1,])
 
 We will repeat the 8-fold crossvalidation 10 times.
 ```{r, warning=FALSE}
-ctrl <- trainControl(method = "repeatedcv", repeats = 10, number = 8)
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, number = 8)
 
 RMSE <- numeric(16)
 for(i in 1:length(RMSE)){
@@ -58,4 +59,23 @@ order(RMSE)
 We can see that the full model has the smallest mean squared prediction error.
 
 # 4.4
+
+First read in the dataset:
+```{r}
+glass <- read.csv("~/work/homework/glass.data", header=FALSE)
+names(glass) <- c("Id", "RI", "Na", "Mg", "Al", "Si", "K", "Ca", "Ba", "Fe", "Type")
+glass_sub <- subset(glass, Type %in% c(1,2))
+glass_sub$Type <- as.factor(glass_sub$Type)
+```
+
+## (a)
+
+The best number of neighbors for this prediction task is $5$.
+```{r}
+ctrl <- trainControl(method="repeatedcv",repeats = 5, number = 10)
+knnFit <- train(Type ~ . - Id, data = glass_sub, method = "knn", trControl = ctrl, preProcess = c("center","scale"), tuneLength = 30)
+plot(knnFit)
+```
+
+## (b)
 
