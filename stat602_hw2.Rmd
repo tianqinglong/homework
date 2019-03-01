@@ -5,6 +5,7 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyr)
 library(caret)
 ```
 
@@ -70,12 +71,202 @@ glass_sub$Type <- as.factor(glass_sub$Type)
 
 ## (a)
 
-The best number of neighbors for this prediction task is $5$.
+The best number of neighbors for this prediction task is $1$.
 ```{r}
-ctrl <- trainControl(method="repeatedcv",repeats = 5, number = 10)
-knnFit <- train(Type ~ . - Id, data = glass_sub, method = "knn", trControl = ctrl, preProcess = c("center","scale"), tuneLength = 30)
+ctrl <- trainControl(method="repeatedcv",repeats = 10, number = 10)
+knnFit <- train(Type ~ . - Id, data = glass_sub, method = "knn", trControl = ctrl, preProcess = c("center","scale"), tuneGrid = expand.grid(k = 1:20) , tuneLength = 30)
 plot(knnFit)
 ```
 
 ## (b)
 
+See hand-written solution.
+
+# 5.1
+
+## (a)
+```{r}
+X <- c(2, 4, 3, 5, 1, 4, 3, 4, 2, 3, 7, 5, 6, 4, 4, 2, 5, 1, 2, 4)
+X <- matrix(X, nrow = 5)
+
+qrObj <- qr(X)
+svdObj <- svd(X)
+```
+
+The Q matrix and R matrix are:
+```{r}
+qr.Q(qrObj)
+qr.R(qrObj)
+```
+The colums of Q matrix give the bases for $C(\textbf{X})$.
+
+The SVD results are:
+```{r}
+svdObj
+```
+The U has columns spanning $C(\textbf{X})$.
+
+## (b)
+
+The eigen decomposition of $X^{'}X$ is：
+```{r}
+(V <- svdObj$v)
+(D_sq <- diag(svdObj$d) %*% diag(svdObj$d))
+```
+
+The eigen decomposition of $XX^{'}$ is:
+```{r}
+(U <- svdObj$u)
+(D_sq <- diag(svdObj$d) %*% diag(svdObj$d))
+```
+
+## (c)
+
+rank = 1
+```{r}
+X %*% svdObj$v[,1]
+```
+
+rank = 2
+```{r}
+X %*% svdObj$v[,c(1,2)]
+```
+
+## (d)
+
+First center the matrix:
+```{r}
+X_center <- scale(X, center = TRUE, scale = FALSE)
+
+X_center_scale <- scale(X, center = T, scale = T)
+```
+
+```{r}
+( svdObj2 <- svd(X_center) )
+( svdObj3 <- svd(X_center_scale) )
+```
+
+The principal component directions:
+```{r}
+svdObj2$v
+svdObj3$v
+```
+
+The "loadings" of the first principal component:
+```{r}
+svdObj2$v[,1]
+svdObj3$v[,1]
+```
+
+The principal components:
+```{r}
+X_center %*% svdObj2$v
+X_center_scale %*% svdObj3$v
+```
+
+## (e)
+
+The rank = 1 approximation:
+```{r}
+X_center %*% svdObj2$v[,1]
+X_center_scale %*% svdObj3$v[,1]
+```
+
+The rank = 2 approximation:
+```{r}
+X_center %*% svdObj2$v[,c(1:2)]
+X_center_scale %*% svdObj3$v[,c(1:2)]
+```
+
+## (f)
+
+```{r}
+( eigenX <- eigen( 1/5 * t(X_center) %*% X_center ) )
+1/5 * t(X_center) %*% X_center %*% eigenX$vectors[,c(1,2)]
+
+( eigenX2 <- eigen( 1/5 * t(X_center_scale) %*% X_center_scale ) )
+1/5 * t(X_center_scale) %*% X_center_scale %*% eigenX2$vectors[,c(1,2)]
+```
+
+# Problem 2
+
+```{r, include= FALSE}
+data2 <- read_excel("~/work/homework/Problem3.4Data.xlsx")
+```
+
+Making up a matrix:
+```{r}
+mother_wavelet <- function(x){
+  
+  value = ( x > 0 && x <= 1/2 ) - ( x > 1/2 && x <= 1)
+  
+  return(value)
+}
+
+haar_basis <- function(x){
+  index <- 1;
+  row <- numeric(16)
+  for(m in 0:3)
+    for( j in 0:( 2^m - 1 ) ){
+      row[index] = sqrt(2^m) * mother_wavelet( (2^m) * ( x - j / (2^m) ) )
+      index = index + 1
+    }
+  
+  return(row)
+}
+
+x_trans <- ( data2$x - min(data2$x) )/( max(data2$x) - min(data2$x) )
+X_h <- t( apply(as.matrix(x_trans), 1, haar_basis) )
+```
+
+## (a)
+
+```{r}
+( fit_ols <- lm(y~x, data = data2) )
+plot(x = data2$x, y = data2$y, ylab = "Y", xlab = "X",
+     pch = 1, cex = 0.5)
+points(x = data2$x, y = fit_ols$fitted.values, pch = 16,
+       col = "red", cex = 0.5)
+legend("topleft", legend = c("Observed", "OLS Fitted"), col = c("black", "red"),
+       pch = c(1, 16))
+```
+
+## (b)
+
+```{r, warning = FALSE}
+y_centered <- data2$y - mean( data2$y )
+
+get_lambda <- function(M)
+{
+  fit_lasso <- glmnet(X_h, y_centered, standardize = T, pmax = M,nlambda = 20000)
+  return( min(fit_lasso$lambda) )
+}
+
+get_predicted <- function(lambda)
+{
+  fit_lasso <- glmnet(X_h, y_centered, standardize = T, lambda = lambda)
+  value = predict(fit_lasso, X_h)
+  
+  return(value)
+}
+
+get_coefficient_vector <- function(lambda){
+  fit_lasso <- glmnet(X_h, y_centered, standardize = T, lambda = lambda)
+  return(fit_lasso$beta)
+}
+
+M <- c(2,4,8)
+lambda <- apply(as.matrix(M), 1, get_lambda)
+value <- apply(as.matrix(lambda), 1, get_predicted) + mean(data2$y)
+
+( coef <- apply( as.matrix(lambda), 1, get_coefficient_vector) )
+
+plot(x = data2$x, y = data2$y, ylab = "Y", xlab = "X",
+     pch = 1, cex = 0.5)
+
+points(x = data2$x, y = value[,1], cex = 0.75, pch = 2, col = 2)
+points(x = data2$x, y = value[,2], cex = 0.75, pch = 3, col = 3)
+points(x = data2$x, y = value[,3], cex = 0.75, pch = 4, col = 4)
+
+legend("topright", legend = c("M = 2", "M = 4", "M = 8"), col = c(2,3,4), pch = c(2,3,4))
+```
