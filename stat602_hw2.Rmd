@@ -547,4 +547,49 @@ From the plots above, the two smoothing matrices are close to each other when th
 # 6
 
 ## (a)
+```{r, include=FALSE}
+x <- seq(0, 1, by = 0.1)
+y <- c(0, 1.5, 2, 0.5, 0, -0.5, 0, 1.5, 3.5, 4.5, 3.5)
+```
 
+The largest effective degrees of freedom I can get for the locally weighted linear regression smoother with tricube kernel is about 4.72. If I try to go over it, the effective degrees of freedom will jump to 11, which means the fitted values are the same as the observed values.
+```{r, warning=FALSE}
+lambda_df5 <- uniroot(function(lambda) smooth.spline(x, y, lambda = lambda)$df-5,
+                      interval = c(0.0001, 1) )$root
+lambda_df9 <- uniroot(function(lambda) smooth.spline(x, y, lambda = lambda)$df-9,
+                      interval = c(0.000001, 1))$root
+cubic_smoothing_5 <- smooth.spline(x, y, lambda = lambda_df5)
+cubic_smoothing_9 <- smooth.spline(x, y, lambda = lambda_df9)
+
+tricube_5 <- loess(y~x, degree = 1, enp.target = 5)
+( tricube_9 <- loess(y~x, degree = 1, enp.target = 9) )
+```
+
+This is the plot for approximately 5 effective degrees of freedom:
+```{r}
+plot(x, y, pch = 2, col = 2)
+points(x, cubic_smoothing_5$y, ylab = "Y", xlab = "x")
+points(x, tricube_5$fitted, pch = 3, col = 3)
+
+lines(x, cubic_smoothing_5$y)
+lines(x, tricube_5$fitted, lty = 3, col = 3)
+lines(x, y, lty = 2, col = 2)
+legend("bottomright", legend = c("Cubic Smoothing", "Observed Values", "Tricube Kernel"),
+       pch = c(1, 2, 3), col = c(1, 2, 3), lty = c(1, 2, 3))
+```
+
+This is the plot for approximately 9 effective degrees of freedom:
+```{r, echo = FALSE}
+plot(x, y, pch = 2, col = 2)
+points(x, cubic_smoothing_9$y, ylab = "Y", xlab = "x")
+points(x, tricube_9$fitted, pch = 3, col = 3)
+
+lines(x, cubic_smoothing_9$y)
+lines(x, tricube_9$fitted, lty = 3, col = 3)
+lines(x, y, lty = 2, col = 2)
+legend("bottomright", legend = c("Cubic Smoothing", "Observed Values", "Tricube Kernel"),
+       pch = c(1, 2, 3), col = c(1, 2, 3), lty = c(1, 2, 3))
+```
+We can see that, the fitted value from locally weighted linear regression is the same as the observed one. The reason for that is explained above. Maybe it is caused by some numerical issues.
+
+# Problem 7
