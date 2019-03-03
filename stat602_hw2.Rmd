@@ -16,7 +16,7 @@ library(lava)
 
 ## First we read in the data set and remove the irrelavant columns.
 ```{r}
-house <- read_excel("~/Downloads/AmesHousingData.xlsx")
+house <- read_excel("~/work/homework/AmesHousingData.xlsx")
 house <- data.frame(Price = house$Price, Size = house$Size,
                     Fireplace = house$Fireplace,
                     Basementbath = house$`Bsmt Bath`, Land = house$Land, intersect = 1)
@@ -59,6 +59,7 @@ for(i in 1:length(RMSE)){
 }
 RMSE
 order(RMSE)
+regMat
 ```
 We can see that the full model has the smallest mean squared prediction error.
 
@@ -125,14 +126,26 @@ The eigen decomposition of $XX^{'}$ is:
 
 ## (c)
 
+```{r, include=FALSE}
+best_approx <- function(X_matrix, rank)
+{
+  x_svd <- svd(X_matrix)
+  value <- as.matrix( x_svd$u[, 1:rank] ) %*% 
+    diag(x = x_svd$d[1:rank], nrow = rank ) %*%
+    as.matrix( t( x_svd$v[, 1:rank] ) )
+  
+  return(value)
+}
+```
+
 rank = 1
 ```{r}
-X %*% svdObj$v[,1]
+( rank1approx <- best_approx(X, 1) )
 ```
 
 rank = 2
 ```{r}
-X %*% svdObj$v[,c(1,2)]
+( rank2approx <- best_approx(X, 2) )
 ```
 
 ## (d)
@@ -171,24 +184,29 @@ X_center_scale %*% svdObj3$v
 
 The rank = 1 approximation:
 ```{r}
-X_center %*% svdObj2$v[,1]
-X_center_scale %*% svdObj3$v[,1]
+( rank1approx_center <- best_approx(X_center, 1) )
+( rank1approx_center_scale <- best_approx(X_center_scale, 1) )
 ```
 
 The rank = 2 approximation:
 ```{r}
-X_center %*% svdObj2$v[,c(1:2)]
-X_center_scale %*% svdObj3$v[,c(1:2)]
+( rank1approx_center <- best_approx(X_center, 2) )
+( rank1approx_center_scale <- best_approx(X_center_scale, 2) )
 ```
 
 ## (f)
 
 ```{r}
-( eigenX <- eigen( 1/5 * t(X_center) %*% X_center ) )
-1/5 * t(X_center) %*% X_center %*% eigenX$vectors[,c(1,2)]
+cov_matrix_center <- 1/5 * t(X_center) %*% X_center
+cov_matrix_center_scale <- 1/5 * t(X_center_scale) %*% X_center_scale
 
-( eigenX2 <- eigen( 1/5 * t(X_center_scale) %*% X_center_scale ) )
-1/5 * t(X_center_scale) %*% X_center_scale %*% eigenX2$vectors[,c(1,2)]
+( eigenX <- eigen( cov_matrix_center ) )
+( best_approx(cov_matrix_center, 1) )
+( best_approx(cov_matrix_center, 2) )
+
+( eigenX <- eigen( cov_matrix_center_scale ) )
+( best_approx(cov_matrix_center_scale, 1) )
+( best_approx(cov_matrix_center_scale, 2) )
 ```
 
 # Problem 2
@@ -277,7 +295,7 @@ legend("topright", legend = c("M = 2", "M = 4", "M = 8"), col = c(2,3,4), pch = 
 # Problem 3
 
 ```{r, include= FALSE}
-data2 <- read_excel("~/Documents/work/Problem3.4Data.xlsx")
+data2 <- read_excel("~/work/homework/Problem3.4Data.xlsx")
 ```
 
 ```{r}
@@ -366,12 +384,16 @@ y <- c(0, 1.5, 2, 0.5, 0, -0.5,
 
 Omiga <- matrix(0, nrow = N, ncol = N)
 
-for(j in 1:(N-2))
-  for(k in 1:(N-2))
-  {
-    Omiga[j+2,k+2] = compute_omiga(j, k)
+for( j in 1:(N-2) )
+  for( k in j:(N-2)){
+    if(k == j){
+      Omiga[j+2, k+2] = 12 * (x[N-1] - x[j])^2 * (x[N] - x[j])
+    } else {
+      Omiga[j+2, k+2] = 6 * ( x[N-1] - x[k] )^2 * ( 2*x[N-1] + x[k] - 3*x[j] ) +
+        12 * ( x[N-1] - x[k] ) * ( x[N-1] - x[j] ) * ( x[N] - x[N-1] )
+      Omiga[k+2, j+2] = Omiga[j+2, k+2]
+    }
   }
-Omiga
 ```
 ```{r}
 H_matrix <- matrix(nrow = N, ncol = N)
@@ -382,14 +404,48 @@ for(i in 1:N)
 H_matrix
 ```
 ```{r}
-( K_matrix <- solve( t(H_matrix) ) %*% Omiga %*% solve( H_matrix ) )
+K_matrix <- solve( t(H_matrix) ) %*% Omiga %*% solve( H_matrix )
+K_matrix <- ( K_matrix + t(K_matrix) )/2
 ```
 
 ## (b)
 ```{r}
-eigen(K_matrix)
-svd(K_matrix)
-K <-( K_matrix + t(K_matrix) )/2
+K_eigen <- eigen(K_matrix); K_eigen$values
+
+reshape2::melt(K_eigen$vectors) %>% mutate(Var2 = as.factor(Var2)) %>%
+  filter(Var2 %in% 1:9) %>% ggplot() + geom_line(aes(x = Var1, y = value, col = Var2))
+```
+
+A large eigen value of $K$ corresponds to a small eigen value of $S_{\lambda}$. From the plot below, we can draw the conclusion that the ```Y[c(2,3,6,9)]``` will get suppressed most in the smoothing.
+```{r}
+reshape2::melt(K_eigen$vectors) %>%
+  mutate(Var2 = as.factor(Var2)) %>%
+  filter( Var2 %in% c(1:2, 8:9) ) %>%
+  ggplot(aes( x = Var1, y = value, col = Var2)) + geom_line(aes( linetype = Var2 )) +geom_point(aes(pch = Var2))
+```
+
+## (c)
+```{r}
+compute_df <- function(lambda, eta_array, target = 0){
+  eta_array[10:11] = 0
+  value <- sum( 1/(1 + lambda * eta_array) )
+  
+  return( value-target )
+}
+
+lambda <- as.matrix( seq(from = 0.001, to = 0.5, by = 0.0001) )
+df <- apply(lambda, 1, compute_df, eta_array = K_eigen$values)
+
+plot(x = lambda, y = df, type = "l")
+```
+```{r}
+df <- c(2.5, 3, 4, 5)
+lambda_roots_4 <- numeric(length(df))
+
+for(i in 1:length(df)){
+  lambda_roots_4[i] <- uniroot(function(x) compute_df(x, eta_array = K_eigen$values, target = df[i]), interval = c(0.0001, 2))$root
+}
+lambda_roots_4
 ```
 
 # Problem 5
@@ -454,3 +510,41 @@ for(i in 1:length(df)){
 
 lambda_roots
 ```
+
+## (b)
+
+```{r}
+lambda5 <- lambda_roots[3]
+lambda4 <- lambda_roots_4[3]
+
+L_lambda5 <- t( apply(as.matrix( x ), 1, compute_I, lambda = lambda5) )
+S_lambda4 <- solve( diag(1, nrow = 11) + lambda4*K_matrix )
+```
+
+The matrix difference is:
+```{r}
+L_lambda5 - S_lambda4
+```
+
+The plots are:
+```{r}
+par(mfrow = c(2,2))
+
+for(i in c(1,3,5)){
+  plot(x = 1:11, y = S_lambda4[i, ], xlab = "Column Index", col = 1,
+     main = paste("Row", i, " of the Smoothing Matrix"), pch = 3, ylab = "Value")
+  lines(x = 1:11, y = S_lambda4[i, ], col = 1, lty = 1)
+  
+  points(x = 1:11, y = L_lambda5[i, ], pch = 2, col = 2)
+  lines(x = 1:11, y = L_lambda5[i, ], col = 2, lty = 2)
+  
+  legend("topright", legend = c("S Matrix", "L Matrix"), pch = c(3, 2), col = c(1, 2), lty = c(1, 2))
+}
+
+```
+From the plots above, the two smoothing matrices are close to each other when the effective degree of freedom is the same.
+
+# 6
+
+## (a)
+
