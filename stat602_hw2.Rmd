@@ -1,9 +1,9 @@
 ---
 title: "stat602_hw2"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
   word_document: default
 ---
 
@@ -118,7 +118,7 @@ The U has columns spanning $C(\textbf{X})$.
 
 ## (b)
 
-The eigen decomposition of $X^{'}X$ is：
+The eigen decomposition of $X^{'}X$ is:
 ```{r}
 (V <- svdObj$v)
 (D_sq <- diag(svdObj$d) %*% diag(svdObj$d))
@@ -585,7 +585,7 @@ legend("bottomright", legend = c("Cubic Smoothing", "Observed Values", "Tricube 
 ```
 
 This is the plot for approximately 9 effective degrees of freedom:
-```{r, echo = FALSE}
+```{r}
 plot(x, y, pch = 2, col = 2)
 points(x, cubic_smoothing_9$y, ylab = "Y", xlab = "x")
 points(x, tricube_9$fitted, pch = 3, col = 3)
@@ -690,7 +690,7 @@ compute_S <- function(z, i){
 ```
 
 The function is becoming closer to 0 with decreasing eigenvalues, but the smallest eigen value is an outlier.
-```{r, echo=FALSE}
+```{r}
 X_vector <- NULL
 Y_vector <- NULL
 Eigen_vector <- NULL
@@ -726,7 +726,7 @@ ggplot(data = plot_frame, mapping = aes(x = X, y = Y) )+ geom_line() + facet_wra
 ## (d)
 
 The eigen decomposition is equivalent to SVD in this problem. The following is the plot:
-```{r, echo = FALSE}
+```{r}
 compute_S065 <- function(y)
 {
   value <- compute_T(y, 0.65)
