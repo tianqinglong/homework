@@ -1,6 +1,10 @@
 ---
 title: "stat602_hw2"
-output: pdf_document
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -10,6 +14,8 @@ library(caret)
 library(readxl)
 library(glmnet)
 library(lava)
+library(GGally)
+library(dplyr)
 ```
 
 # 4.3
@@ -48,7 +54,7 @@ formu(regMat[1,])
 
 ## Cross-validation using **caret** package
 
-We will repeat the 8-fold crossvalidation 10 times.
+We will repeat the 8-fold crossval times.
 ```{r, warning=FALSE}
 ctrl <- trainControl(method = "repeatedcv", repeats = 5, number = 8)
 
@@ -593,3 +599,191 @@ legend("bottomright", legend = c("Cubic Smoothing", "Observed Values", "Tricube 
 We can see that, the fitted value from locally weighted linear regression is the same as the observed one. The reason for that is explained above. Maybe it is caused by some numerical issues.
 
 # Problem 7
+```{r, include = FALSE}
+wine <- read.csv("~/work/homework/winequality-white.csv", sep=";")
+load("winefit.Rdata")
+```
+
+```{r, eval=FALSE}
+wineknn<- train(y=wine$quality,
+                x=wine[,-12],
+                method="knn",
+                preProcess=c("center","scale"),
+                trControl=trainControl(method="repeatedcv",repeats=100,number=10))
+
+winenet<- train(y=wine$quality,
+                x=wine[,-12],
+                method="glmnet",
+                preProcess=c("center","scale"),
+                trControl=trainControl(method="repeatedcv",repeats=100,number=10))
+
+winepcr<- train(y=wine$quality,
+                x=wine[,-12],
+                method="pcr",
+                preProcess=c("center","scale"),
+                trControl=trainControl(method="repeatedcv",repeats=100,number=10))
+
+winepls<- train(y=wine$quality,
+                x=wine[,-12],
+                method="pls",
+                preProcess=c("center","scale"),
+                trControl=trainControl(method="repeatedcv",repeats=100,number=10))
+
+winemars<- train(y=wine$quality,
+                 x=wine[,-12],
+                 method="earth",
+                 preProcess=c("center","scale"),
+                 trControl=trainControl(method="repeatedcv",repeats=100,number=10))
+
+wineols<- lm(quality~.,data=wine)
+```
+```{r}
+winepred<- sapply(list(wineknn,winenet,winepcr,winepls,winemars,wineols),predict)
+colnames(winepred)<- c("kNN","Net","PCR","PLS","MARS","OLS")
+
+res<- data.frame(cbind(Quality=wine$quality,winepred))
+
+ggpairs(res)
+
+round(cor(res),digits=2)
+```
+
+# Problem 8
+
+## (a)
+```{r}
+x <- seq(0, 1, by = 0.1)
+y <- c(0, 1.5, 2, 0.5, 0, -0.5, 0, 1.5, 3.5, 4.5, 3.5)
+
+x_std <- scale(x, center = T, scale = T)
+y_ctr <- scale(y, center = T, scale = FALSE)
+
+K <- as.matrix( -1/2 * dist(x_std)^2 ) %>% exp
+
+G <- matrix(nrow = 11, ncol = 11)
+for(i in 1:11)
+  for(j in 1:11){
+    G[i, j] = K[i, j] - colMeans(K)[i] - rowMeans(K)[j] + mean(K)
+  }
+G
+```
+
+## (c)
+```{r}
+G_eigen <- eigen(G)
+
+compute_T <- function(z, x){
+  return( exp(-1/2 * ( x - z )^2 ) )
+}
+
+compute_S <- function(z, i){
+  T_xi <- compute_T( z, x_std[i] )
+  
+  M <- 0
+  for(j in 1:11){
+    M <- M + compute_T( z, x_std[j] )
+  }
+  M <- M/11
+  
+  return(T_xi + M)
+}
+```
+
+The function is becoming closer to 0 with decreasing eigenvalues, but the smallest eigen value is an outlier.
+```{r, echo=FALSE}
+X_vector <- NULL
+Y_vector <- NULL
+Eigen_vector <- NULL
+
+for(i in 1:11){
+  eigen_value <- G_eigen$values[i]
+  
+  
+  x_plot <- seq(from = min( x_std ), to = max( x_std ), by = 0.01)
+  y_plot <- numeric( length(x_plot) )
+  
+  Eigen_vector <- c( Eigen_vector, rep(eigen_value, times = length(x_plot)) )
+  X_vector <- c(X_vector, x_plot)
+  
+  for(ii in 1:length(x_plot) ){
+    y_value <- 0
+    for(jj in 1:11){
+      y_value <- y_value + G_eigen$vectors[,i][jj] * compute_S( x_plot[ii], jj )
+    }
+    y_plot[ii] <- y_value
+  }
+  
+  Y_vector <- c(Y_vector, y_plot)
+}
+
+X_vector <- ( sd(x) * X_vector + mean(x) )
+
+plot_frame <- data.frame(X = X_vector, Y = Y_vector, Lambda = Eigen_vector)
+
+ggplot(data = plot_frame, mapping = aes(x = X, y = Y) )+ geom_line() + facet_wrap(~Lambda)
+```
+
+## (d)
+
+The eigen decomposition is equivalent to SVD in this problem. The following is the plot:
+```{r, echo = FALSE}
+compute_S065 <- function(y)
+{
+  value <- compute_T(y, 0.65)
+  for(i in 1:11){
+    value <- value - 1/11 * compute_T( y, x_std[i] )
+  }
+  
+  return(value)
+}
+
+for(i in 1:length(x_plot))
+{
+  y_plot[i] <- compute_S065(x_plot[i])
+}
+
+kernel_inner <- function(x, y){
+  return( exp(-(x - y)^2/2) )
+}
+
+S_65_S_xj <- function(j){
+  value <- kernel_inner(0.65, x_std[j])
+  
+  part2 <- 0
+  for(i in 1:11){
+    part2 <- part2 + kernel_inner(x_std[i], 0.65) + kernel_inner(x_std[i], x_std[j])
+  }
+  part2 <- -1/11 * part2
+  
+  part3 <- 0
+  dict <- expand.grid(x_std, x_std)
+  for(i in 1:121){
+    part3 <- part3 + kernel_inner(dict[i,1], dict[i,2])
+  }
+  part3 <- part3 / 121
+  
+  return(value + part2 + part3)
+}
+
+compute_s_weight <- function(y, j)
+{
+  weight <- rowSums(G_eigen$vectors)
+  value <- weight[j] * S_65_S_xj(j) * compute_S(y, j)
+  return(value)
+}
+
+final_function <- function(y){
+  value = 0;
+  for(i in 1:11){
+    value = value + compute_s_weight(y, i)
+  }
+  return(value)
+}
+
+y_proj <- numeric(length(x_plot))
+for(i in 1:length(x_plot)){
+  y_proj <- final_function(x_plot)
+}
+
+data.frame(X = sd(x) * x_plot+mean(x), Original = y_plot, Projection = y_proj) %>% reshape2::melt(id.vars = "X") %>% ggplot() +geom_line(aes(x = X, y = value, col = variable))
+```
