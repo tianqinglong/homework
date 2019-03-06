@@ -249,10 +249,10 @@ X_h <- t( apply(as.matrix(x_trans), 1, haar_basis) )
 ## (a)
 
 ```{r}
-( fit_ols <- lm(y~x, data = data2) )
+( fit_ols <- lm(y~X_h, data = data2) )
 plot(x = data2$x, y = data2$y, ylab = "Y", xlab = "X",
      pch = 1, cex = 0.5)
-points(x = data2$x, y = fit_ols$fitted.values, pch = 16,
+lines(x = sort( data2$x ), y = fit_ols$fitted.values[order(data2$x)], pch = 16,
        col = "red", cex = 0.5)
 legend("topleft", legend = c("Observed", "OLS Fitted"), col = c("black", "red"),
        pch = c(1, 16))
